@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { BarChart3, Users, ShieldAlert, TrendingUp, Filter, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useLanguage } from '../lib/LanguageContext';
+import { seedDemoProfiles } from '../lib/seedService';
 
 interface Props {
   user: User;
@@ -22,31 +23,67 @@ export function AdminPanel({ user }: Props) {
   });
   const [recentProfiles, setRecentProfiles] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  const fetchAdminData = async () => {
+    try {
+      const usersSnap = await getDocs(collection(db, 'profiles'));
+      const matchesSnap = await getDocs(collection(db, 'matches'));
+      
+      const profiles = usersSnap.docs.map(doc => doc.data() as UserProfile);
+      
+      setStats({
+        totalUsers: profiles.length,
+        premiumUsers: profiles.filter(p => p.subscriptionTier === 'pro').length,
+        eliteUsers: profiles.filter(p => p.subscriptionTier === 'elite').length,
+        totalMatches: matchesSnap.size
+      });
+
+      setRecentProfiles(profiles.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 10));
+      setLoading(false);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
-    async function fetchAdminData() {
-      try {
-        const usersSnap = await getDocs(collection(db, 'profiles'));
-        const matchesSnap = await getDocs(collection(db, 'matches'));
-        
-        const profiles = usersSnap.docs.map(doc => doc.data() as UserProfile);
-        
-        setStats({
-          totalUsers: profiles.length,
-          premiumUsers: profiles.filter(p => p.subscriptionTier === 'pro').length,
-          eliteUsers: profiles.filter(p => p.subscriptionTier === 'elite').length,
-          totalMatches: matchesSnap.size
-        });
-
-        // Mock more data if empty
-        setRecentProfiles(profiles.slice(0, 5));
-        setLoading(false);
-      } catch (e) {
-        console.error(e);
-      }
-    }
     fetchAdminData();
   }, []);
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    try {
+      await seedDemoProfiles();
+      await fetchAdminData();
+      alert('SIGNAL_PROFILES_DEPLOYED_SUCCESSFULLY');
+    } catch (e) {
+      console.error(e);
+      alert('SYSTEM_ERROR_FAILED_TO_SEED');
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
+  const handlePurge = async () => {
+    if (!confirm('WARNING: THIS WILL DELETE ALL DEMO PROFILES. PROCEED?')) return;
+    setIsSeeding(true);
+    try {
+      const usersSnap = await getDocs(collection(db, 'profiles'));
+      const demoProfiles = usersSnap.docs.filter(doc => doc.id.startsWith('demo_'));
+      
+      const { deleteDoc, doc } = await import('firebase/firestore');
+      for (const d of demoProfiles) {
+        await deleteDoc(doc(db, 'profiles', d.id));
+      }
+      
+      await fetchAdminData();
+      alert('DEMO_DATA_PURGED');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   if (loading) return <div className="p-8 font-pop animate-pulse text-pop-pink">{t('DECRYPTING_DATA')}</div>;
 
@@ -137,6 +174,54 @@ export function AdminPanel({ user }: Props) {
             ))}
          </div>
          <p className="text-center font-bold text-[10px] uppercase tracking-[0.3em]">DAILY ACTIVE VIBRATIONS</p>
+      </div>
+
+      {/* Admin Quick Actions */}
+      <div className="grid grid-cols-2 gap-4">
+         <button className="bg-pop-pink text-white p-4 border-4 border-pop-black font-pop text-sm uppercase italic shadow-[6px_6px_0px_0px_black] hover:translate-x-1 hover:translate-y-1 transition-all">
+            DEPLOY_SYSTEM_MAIL
+         </button>
+         <button 
+           onClick={handleSeed}
+           disabled={isSeeding}
+           className={cn(
+             "bg-pop-yellow text-pop-black p-4 border-4 border-pop-black font-pop text-sm uppercase italic shadow-[6px_6px_0px_0px_black] hover:translate-x-1 hover:translate-y-1 transition-all",
+             isSeeding && "animate-pulse opacity-50 cursor-not-allowed"
+           )}
+         >
+            {isSeeding ? 'SEEDING...' : 'SEED_DEMO_PROFILES'}
+         </button>
+         <button 
+           onClick={handlePurge}
+           disabled={isSeeding}
+           className="bg-white text-pop-black p-4 border-4 border-pop-black font-pop text-sm uppercase italic shadow-[6px_6px_0px_0px_black] hover:translate-x-1 hover:translate-y-1 transition-all"
+         >
+            PURGE_DEMO_DATA
+         </button>
+         <button className="bg-pop-cyan text-pop-black p-4 border-4 border-pop-black font-pop text-sm uppercase italic shadow-[6px_6px_0px_0px_black] hover:translate-x-1 hover:translate-y-1 transition-all">
+            CLEAR_CACHE_NODES
+         </button>
+      </div>
+
+      {/* Admin Docs / Code Section */}
+      <div className="bg-pop-yellow border-4 border-pop-black p-6 space-y-4">
+         <h3 className="font-pop text-2xl uppercase italic">RESTRICTED_DOCS.md</h3>
+         <div className="prose prose-invert prose-sm max-h-48 overflow-y-auto font-mono text-[10px] space-y-4 bg-pop-black p-4 border-2 border-pop-black">
+            <div>
+               <p className="text-pop-pink font-bold underline">APP_ARCHITECTURE:</p>
+               <p>&gt; RUNTIME: VITE + REACT 18</p>
+               <p>&gt; STYLING: TAILWIND_V4 + MOTION (REACT)</p>
+               <p>&gt; PERSISTENCE: GOOGLE_FIRESTORE (REALTIME)</p>
+               <p>&gt; AUTH: GOOGLE_IDENTITY_SERVICE</p>
+               <p>&gt; INFRA: GOOGLE_CLOUD_RUN (NATIVE)</p>
+            </div>
+            <div>
+               <p className="text-pop-cyan font-bold underline">SECURITY_LAYER:</p>
+               <p>&gt; AGE_LOCK: 18+ ENFORCED VIA BIRTH_DATE_VALIDATION</p>
+               <p>&gt; PRIVACY: ELITE_INCOGNITO_PROTOCOL_v4</p>
+               <p>&gt; TRANSPORT: SHA-256_SSL_UPLINK</p>
+            </div>
+         </div>
       </div>
     </motion.div>
   );

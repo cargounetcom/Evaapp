@@ -5,7 +5,8 @@ import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
 import { motion } from 'motion/react';
 import { Zap, Heart, MessageCircle, Star, Crown } from 'lucide-react';
-import GooglePayButton from '@google-pay/button-react';
+import { cn } from '../lib/utils';
+import { StripePaymentOverlay } from './StripePayment';
 
 interface Props {
   user: User;
@@ -14,6 +15,7 @@ interface Props {
 
 export function PremiumUpgrade({ user, profile }: Props) {
   const [success, setSuccess] = useState<string | null>(null);
+  const [paymentRequest, setPaymentRequest] = useState<{ amount: number; tier: string; feeds: number } | null>(null);
 
   const handlePaymentSuccess = async (tier: string, feeds: number = 0) => {
     if (!profile) return;
@@ -75,9 +77,11 @@ export function PremiumUpgrade({ user, profile }: Props) {
            <h3 className="font-pop text-2xl text-pop-black text-center mb-6 underline decoration-pop-pink decoration-4 underline-offset-8">BOOSTS & ADD-ONS</h3>
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <AddonCard icon={<Star className="text-pop-pink" fill="currentColor" />} title="MASHABLE" price="€8.00" desc="GLOBAL PROFILE BLAST" />
-              <AddonCard icon={<Zap className="text-pop-yellow" fill="currentColor" />} title="EXTRA FEEDS" price="€10.00" desc="10 PREMIUM SLOTS" />
+              <AddonCard icon={<Zap className="text-pop-yellow" fill="currentColor" />} title="EXTRA FEEDS (10)" price="€10.00" desc="10 PREMIUM SLOTS" />
               <AddonCard icon={<Heart className="text-pop-cyan" fill="currentColor" />} title="APPOINTMENT" price="€3.99" desc="GUARANTEED DATE SLOT" />
-              <AddonCard icon={<Crown className="text-pop-yellow" fill="currentColor" />} title="V.I.P." price="€15.00" desc="LIFETIME BADGE" />
+              <AddonCard icon={<Crown className="text-pop-yellow" fill="currentColor" />} title="V.I.P. BADGE" price="€15.00" desc="LIFETIME STATUS" />
+              <AddonCard icon={<Star className="text-pop-cyan" />} title="STANDARD FEEDS" price="€4.00" desc="BASIC BROADCAST" />
+              <AddonCard icon={<Zap className="text-white" />} title="VIDEO UPLOAD" price="€0.50" desc="SONIC VIDEO PROFILE" dark />
            </div>
         </div>
 
@@ -100,14 +104,12 @@ export function PremiumUpgrade({ user, profile }: Props) {
            </ul>
            {profile?.subscriptionTier !== 'pro' && profile?.subscriptionTier !== 'elite' && !success && (
              <div className="pt-4">
-               <GooglePayButton
-                environment="TEST"
-                paymentRequest={getGPayRequest('pro', '9.99')}
-                onLoadPaymentData={() => handlePaymentSuccess('pro')}
-                buttonColor="black"
-                buttonType="subscribe"
-                style={{ width: '100%', height: '56' }}
-               />
+                <button
+                  onClick={() => setPaymentRequest({ amount: 9.99, tier: 'pro', feeds: 0 })}
+                  className="w-full bg-pop-black text-white p-4 font-pop text-xl italic hover:bg-pop-pink transition-all shadow-[4px_4px_0px_0px_white] active:translate-x-1 active:translate-y-1 active:shadow-none"
+                >
+                  UPGRADE_TO_PRO
+                </button>
              </div>
            )}
         </div>
@@ -128,24 +130,35 @@ export function PremiumUpgrade({ user, profile }: Props) {
            </div>
            <ul className="space-y-3">
              <FeaturePoint text="INCOGNITO MODE (STAY HIDDEN)" />
+             <FeaturePoint text="ANIME AVATAR GENERATION" />
              <FeaturePoint text="EXCLUSIVE GIFTING SYSTEM" />
              <FeaturePoint text="DIRECT REWIND ON SWIPES" />
              <FeaturePoint text="ALL PRO FEATURES INCLUDED" />
            </ul>
            {profile?.subscriptionTier !== 'elite' && !success && (
              <div className="pt-4">
-               <GooglePayButton
-                environment="TEST"
-                paymentRequest={getGPayRequest('elite', '50.00')}
-                onLoadPaymentData={() => handlePaymentSuccess('elite')}
-                buttonColor="black"
-                buttonType="subscribe"
-                style={{ width: '100%', height: '56' }}
-               />
+                <button
+                  onClick={() => setPaymentRequest({ amount: 50.00, tier: 'elite', feeds: 0 })}
+                  className="w-full bg-pop-black text-white p-4 font-pop text-xl italic shadow-[4px_4px_0px_0px_#00FFFF] hover:bg-pop-pink transition-all active:translate-x-1 active:translate-y-1 active:shadow-none"
+                >
+                  SECURE_ELITE_ACCESS
+                </button>
              </div>
            )}
         </div>
       </div>
+      {paymentRequest && (
+        <StripePaymentOverlay 
+          amount={paymentRequest.amount}
+          tier={paymentRequest.tier}
+          userId={user.uid}
+          onClose={() => setPaymentRequest(null)}
+          onSuccess={() => {
+            handlePaymentSuccess(paymentRequest.tier, paymentRequest.feeds);
+            setPaymentRequest(null);
+          }}
+        />
+      )}
     </motion.div>
   );
 }
@@ -159,14 +172,12 @@ function PricingOption({ title, price, per, bonus, onPay }: { title: string, pri
           {bonus && <p className="text-[10px] font-black text-pop-pink animate-pulse mt-1">{bonus}</p>}
        </div>
        <div className="w-full sm:w-auto">
-          <GooglePayButton
-            environment="TEST"
-            paymentRequest={getGPayRequest(title, price.replace('€', ''))}
-            onLoadPaymentData={onPay}
-            buttonColor="black"
-            buttonType="subscribe"
-            style={{ width: '100%', height: '44' }}
-          />
+          <button
+            onClick={onPay}
+            className="w-full bg-pop-black text-white px-6 py-2 font-pop italic border-2 border-pop-black hover:bg-pop-cyan hover:text-pop-black transition-all"
+          >
+            SELECT
+          </button>
        </div>
     </div>
   );
@@ -199,40 +210,6 @@ function FeaturePoint({ text }: { text: string }) {
       <span className="text-[10px] font-bold uppercase tracking-tight">{text}</span>
     </li>
   );
-}
-
-function getGPayRequest(tier: string, price: string) {
-  return {
-    apiVersion: 2,
-    apiVersionMinor: 0,
-    allowedPaymentMethods: [
-      {
-        type: 'CARD',
-        parameters: {
-          allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
-          allowedCardNetworks: ['MASTERCARD', 'VISA'],
-        },
-        tokenizationSpecification: {
-          type: 'PAYMENT_GATEWAY',
-          parameters: {
-            gateway: 'example',
-            gatewayMerchantId: 'exampleGatewayMerchantId',
-          },
-        },
-      },
-    ],
-    merchantInfo: {
-      merchantId: '12345678901234567890',
-      merchantName: 'Eva Dating',
-    },
-    transactionInfo: {
-      totalPriceStatus: 'FINAL',
-      totalPriceLabel: `Eva ${tier.toUpperCase()}`,
-      totalPrice: price,
-      currencyCode: 'EUR',
-      countryCode: 'IT',
-    },
-  };
 }
 
 function Feature({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {

@@ -48,16 +48,30 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidProfile(incoming());
       
       allow update: if isOwner(userId) 
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'interests', 'gender', 'lookingFor', 'photoURL', 'updatedAt', 'isPremium'])
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'interests', 'gender', 'lookingFor', 'photoURL', 'updatedAt', 'isPremium', 'subscriptionTier', 'isIncognito', 'soundEnabled', 'lastVibration'])
         && incoming().updatedAt == request.time
         && (
-          // Only allow isPremium change if they don't change other critical fields? 
-          // Realistically, isPremium should be read-only for the client, 
-          // but for this applet we might need to allow it for the GPay demo.
           incoming().userId == existing().userId &&
           incoming().email == existing().email &&
           incoming().birthDate == existing().birthDate
         );
+    }
+
+    // --- Vibration Validation ---
+    function isValidVibration(data) {
+      return data.keys().hasAll(['userId', 'userName', 'photoURL', 'text', 'color', 'timestamp'])
+        && data.userId == request.auth.uid
+        && data.text is string && data.text.size() <= 120
+        && data.color is string
+        && data.timestamp is string
+        && (!data.keys().contains('mediaURL') || data.mediaURL is string)
+        && (!data.keys().contains('mediaType') || (data.mediaType == 'image' || data.mediaType == 'video'));
+    }
+
+    match /vibrations/{vibeId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidVibration(incoming());
     }
 
     // --- Swipe Validation ---

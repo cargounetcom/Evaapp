@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { UserProfile } from '../types';
+import { UserProfile, Vibration } from '../types';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'motion/react';
-import { Heart, X as Fire, Zap, Star, MapPin } from 'lucide-react';
+import { Heart, X as Fire, Zap, Star, MapPin, Plus, Camera, Send, Radio } from 'lucide-react';
 import { differenceInYears } from 'date-fns';
 import { useLanguage } from '../lib/LanguageContext';
 
@@ -18,13 +18,59 @@ export function Discovery({ user, profile }: Props) {
   const [potentials, setPotentials] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [latestVibrations, setLatestVibrations] = useState<Vibration[]>([]);
 
   const [matchUser, setMatchUser] = useState<UserProfile | null>(null);
   const [distanceMax, setDistanceMax] = useState(30);
+  const [isCreatingFeed, setIsCreatingFeed] = useState(false);
+  const [feedText, setFeedText] = useState('');
+  const [isComplimenting, setIsComplimenting] = useState<UserProfile | null>(null);
+  const [complimentText, setComplimentText] = useState('');
+  const [feeds, setFeeds] = useState<any[]>([]);
+  const [isScanning, setIsScanning] = useState(false);
+  useEffect(() => {
+    const q = query(collection(db, 'vibrations'), orderBy('timestamp', 'desc'), limit(3));
+    return onSnapshot(q, (snapshot) => {
+      setLatestVibrations(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vibration)));
+    });
+  }, []);
+
+  const handleCreateFeed = async () => {
+    if (!profile || !feedText) return;
+    try {
+      const feedData = {
+        authorId: user.uid,
+        authorName: profile.displayName,
+        authorPhoto: profile.photoURL,
+        message: feedText,
+        imageUrls: [`https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=600`],
+        createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+      };
+      await addDoc(collection(db, 'feeds'), feedData);
+      setIsCreatingFeed(false);
+      setFeedText('');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'feeds'),
+      where('expiresAt', '>', new Date()),
+      orderBy('expiresAt', 'desc'),
+      limit(10)
+    );
+    return onSnapshot(q, (snapshot) => {
+      setFeeds(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+  }, []);
 
   useEffect(() => {
     async function fetchPotentials() {
       if (!profile) return;
+      setIsScanning(true);
       
       const q = query(
         collection(db, 'profiles'),
@@ -36,6 +82,12 @@ export function Discovery({ user, profile }: Props) {
       
       const filtered = profiles.filter(p => {
         if (p.isIncognito) return false;
+        
+        // AGE_ENFORCEMENT: 18+ ONLY
+        const birthYear = new Date(p.birthDate).getFullYear();
+        const currentYear = new Date().getFullYear();
+        if (currentYear - birthYear < 18) return false;
+
         if (profile.lookingFor === 'everyone') return true;
         if (p.distance && p.distance > distanceMax) return false;
         return p.gender === profile.lookingFor;
@@ -118,6 +170,7 @@ export function Discovery({ user, profile }: Props) {
         setPotentials(filtered);
       }
       setLoading(false);
+      setTimeout(() => setIsScanning(false), 2000);
     }
     fetchPotentials();
   }, [profile, user.uid, distanceMax]);
@@ -191,6 +244,66 @@ export function Discovery({ user, profile }: Props) {
 
   return (
     <div className="flex-1 flex flex-col relative h-[calc(100vh-250px)]">
+      <AnimatePresence>
+        {isScanning && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[150] bg-pop-black/90 halftone flex flex-col items-center justify-center space-y-8"
+          >
+            <div className="w-64 h-64 border-8 border-pop-cyan rounded-full relative flex items-center justify-center">
+              <motion.div 
+                animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 1, repeat: Infinity }}
+                className="absolute inset-0 bg-pop-cyan rounded-full"
+              />
+              <div className="text-white font-pop text-4xl italic animate-pulse">TUNING...</div>
+              {[...Array(8)].map((_, i) => (
+                <motion.div 
+                  key={i}
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "linear", delay: i * 0.5 }}
+                  className="absolute w-full flex justify-center"
+                >
+                  <div className="w-2 h-10 bg-pop-pink" style={{ transform: `translateY(-120px)` }} />
+                </motion.div>
+              ))}
+            </div>
+            <div className="text-center space-y-2">
+               <p className="font-mono text-pop-cyan character-flicker uppercase">SCANNING_FREQUENCIES_0.42Hz</p>
+               <div className="w-48 h-2 bg-white/20 border border-pop-black overflow-hidden relative">
+                  <motion.div 
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "100%" }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="w-1/2 h-full bg-pop-yellow absolute inset-y-0"
+                  />
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Live Preview Feed Overlay */}
+      <div className="fixed top-1/2 -translate-y-1/2 left-4 w-48 hidden lg:block space-y-3 z-40">
+         <div className="bg-pop-black text-white px-2 py-1 font-pop text-[8px] uppercase italic flex items-center gap-1 border-2 border-pop-black">
+            <Radio size={10} className="animate-pulse text-pop-cyan" />
+            LIVE_FEED
+         </div>
+         {latestVibrations.map(v => (
+           <motion.div 
+             key={v.id} 
+             initial={{ x: -20, opacity: 0 }}
+             animate={{ x: 0, opacity: 1 }}
+             className="bg-white border-2 border-pop-black p-2 shadow-[2px_2px_0px_0px_black] relative"
+             style={{ borderColor: v.color }}
+           >
+              <p className="font-mono text-[8px] break-words line-clamp-2 uppercase">{v.text}</p>
+              <div className="text-[6px] font-pop uppercase mt-1" style={{ color: v.color }}>{v.userName}</div>
+           </motion.div>
+         ))}
+      </div>
+
       {/* Feeds Bar */}
       <div className="flex gap-4 overflow-x-auto py-2 mb-4 no-scrollbar">
          <motion.button 
@@ -208,10 +321,31 @@ export function Discovery({ user, profile }: Props) {
       </div>
 
       <div className="flex justify-between items-center px-2 mb-4">
-         <div className="bg-pop-black text-white px-3 py-1 font-pop text-xs rotate-1">RANGE: {distanceMax}KM</div>
-         <button className="bg-white border-2 border-pop-black p-1">
-            <MapPin size={16} />
-         </button>
+         <div className="flex items-center gap-2">
+            <div className="bg-pop-black text-white px-3 py-1 font-pop text-xs rotate-1">RANGE: {distanceMax}KM</div>
+            <div className="flex gap-0.5">
+               {[...Array(3)].map((_, i) => (
+                  <motion.div 
+                    key={i}
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+                    className="w-1 h-4 bg-pop-cyan shadow-[1px_1px_0px_0px_black]" 
+                  />
+               ))}
+            </div>
+         </div>
+         <div className="flex items-center gap-2">
+            <div className="hidden sm:block font-mono text-[8px] text-pop-black/60 font-black animate-pulse">SONIC_SIGNAL: STABLE</div>
+            <button 
+              onClick={() => {
+                setIsScanning(true);
+                setTimeout(() => setIsScanning(false), 1500);
+              }}
+              className="bg-white border-2 border-pop-black p-1 hover:bg-pop-yellow transition-colors group"
+            >
+               <MapPin size={16} className="group-hover:rotate-12" />
+            </button>
+         </div>
       </div>
 
       <AnimatePresence>
@@ -220,7 +354,51 @@ export function Discovery({ user, profile }: Props) {
           user={current} 
           age={age}
           onSwipe={handleSwipe}
+          onCompliment={() => setIsComplimenting(current)}
         />
+      </AnimatePresence>
+
+      {/* Compliment Modal */}
+      <AnimatePresence>
+        {isComplimenting && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] bg-pop-cyan/95 flex items-center justify-center p-6 halftone"
+          >
+            <div className="pop-card bg-pop-yellow p-8 w-full max-w-sm space-y-6 shadow-[10px_10px_0px_0px_black]">
+               <h2 className="text-4xl font-pop text-pop-black">SONIC BLAST!</h2>
+               <p className="font-bold text-xs uppercase italic bg-white border-2 border-pop-black p-2">
+                 SEND A COMPLIMENT TO {isComplimenting.displayName} FOR 0.50 EUR
+               </p>
+               <textarea 
+                value={complimentText}
+                onChange={(e) => setComplimentText(e.target.value)}
+                placeholder="TYPE YOUR VIBRATION..."
+                className="w-full h-32 bg-white border-4 border-pop-black p-4 font-bold outline-none resize-none"
+               />
+               <div className="flex gap-2">
+                 <button 
+                  onClick={() => setIsComplimenting(null)}
+                  className="flex-1 bg-pop-black text-white p-4 font-pop hover:bg-pop-pink transition-colors"
+                 >
+                   ABORT
+                 </button>
+                 <button 
+                  onClick={() => {
+                    // Logic to send compliment
+                    setIsComplimenting(null);
+                    setComplimentText('');
+                  }}
+                  className="flex-1 bg-pop-pink text-white p-4 font-pop shadow-[4px_4px_0px_0px_black] hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all"
+                 >
+                   LAUNCH!
+                 </button>
+               </div>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Feed Creation Modal */}
@@ -234,21 +412,30 @@ export function Discovery({ user, profile }: Props) {
           >
              <div className="pop-card bg-pop-yellow p-6 w-full max-w-md space-y-6">
                 <div className="flex justify-between items-center">
-                   <h3 className="font-pop text-2xl uppercase">CREATE FEED</h3>
+                   <h3 className="font-pop text-2xl uppercase">CREATE SONIC FEED</h3>
                    <button onClick={() => setIsCreatingFeed(false)} className="text-pop-black"><Fire size={24} /></button>
                 </div>
-                <div className="aspect-square bg-pop-black border-4 border-pop-black overflow-hidden relative">
-                   <img src="https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=600" className="w-full h-full object-cover opacity-60" />
-                   <div className="absolute inset-0 flex items-center justify-center">
-                      <Camera size={48} className="text-white" />
-                   </div>
+                
+                <div className="grid grid-cols-3 gap-2 h-32">
+                   {[1, 2, 3].map((i) => (
+                      <div key={i} className="bg-pop-black border-2 border-pop-black overflow-hidden relative flex items-center justify-center">
+                         <img src={`https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=200&sig=${i}`} className="w-full h-full object-cover opacity-40" />
+                         <Camera size={20} className="text-white absolute" />
+                      </div>
+                   ))}
                 </div>
+
                 <input 
                   value={feedText}
                   onChange={(e) => setFeedText(e.target.value)}
                   placeholder="ADD A SONIC CAPTION..."
                   className="w-full bg-white border-4 border-pop-black p-4 font-bold outline-none"
                 />
+                
+                <div className="bg-pop-cyan/20 border-2 border-pop-black border-dashed p-4 text-center">
+                   <p className="font-pop text-xs text-pop-black">PULSE LIFE: 24 HOURS</p>
+                </div>
+
                 <button 
                   onClick={handleCreateFeed}
                   className="pop-button-pink w-full flex items-center justify-center gap-2"
@@ -256,7 +443,6 @@ export function Discovery({ user, profile }: Props) {
                   <Send size={20} />
                   BROADCAST (4.00 EUR)
                 </button>
-                <p className="text-[10px] font-black italic text-center text-pop-black/60 uppercase tracking-widest">EXPIRES IN 24 SECONDS... ER, HOURS!</p>
              </div>
           </motion.div>
         )}
@@ -300,7 +486,7 @@ export function Discovery({ user, profile }: Props) {
   );
 }
 
-function SwipeCard({ user, age, onSwipe }: { user: UserProfile, age: number, onSwipe: (type: 'like' | 'pass') => void }) {
+function SwipeCard({ user, age, onSwipe, onCompliment }: { user: UserProfile, age: number, onSwipe: (type: 'like' | 'pass') => void, onCompliment: () => void }) {
   const { t } = useLanguage();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
@@ -351,21 +537,47 @@ function SwipeCard({ user, age, onSwipe }: { user: UserProfile, age: number, onS
               <h3 className="text-4xl font-pop text-white drop-shadow-[2px_2px_0px_black]">{user.displayName}, {age}</h3>
               {user.isPremium && <div className="p-1 bg-pop-yellow border-2 border-pop-black"><Star size={16} fill="currentColor" /></div>}
             </div>
-            {Math.random() > 0.5 && (
-               <div className="bg-pop-cyan border-2 border-pop-black px-2 py-0.5 flex items-center gap-1.5 -rotate-2">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  <span className="font-pop text-[10px] text-white underline">{t('LIVE')}</span>
-               </div>
-            )}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCompliment();
+                }}
+                className="bg-pop-yellow border-2 border-pop-black p-2 shadow-[2px_2px_0px_0px_black] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none transition-all"
+                title="Send Sonic Compliment"
+              >
+                <Zap size={20} className="text-pop-black" fill="currentColor" />
+              </button>
+              {Math.random() > 0.5 && (
+                 <div className="bg-pop-cyan border-2 border-pop-black px-2 py-0.5 flex items-center gap-1.5 -rotate-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="font-pop text-[10px] text-white underline">{t('LIVE')}</span>
+                 </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2 text-white font-bold italic text-xs mb-1">
              <MapPin size={12} />
              {user.distance ? `${user.distance.toFixed(1)} km away` : 'Near you'}
           </div>
-          <div className="bg-white border-2 border-pop-black p-3 translate-y-1">
+          <div className="bg-white border-2 border-pop-black p-3 translate-y-1 relative overflow-hidden">
+            {user.lastVibration && (
+              <div 
+                className="absolute top-0 right-0 h-full w-1 opacity-60" 
+                style={{ backgroundColor: user.lastVibration.color }} 
+              />
+            )}
             <p className="text-sm font-bold leading-tight uppercase italic line-clamp-2">
               "{user.bio}"
             </p>
+            {user.lastVibration && (
+              <div className="mt-2 flex items-center gap-2 border-t border-pop-black/10 pt-2">
+                <Radio size={10} style={{ color: user.lastVibration.color }} className="animate-pulse" />
+                <span className="text-[8px] font-mono font-black truncate opacity-60" style={{ color: user.lastVibration.color }}>
+                  LAST_VIBE: {user.lastVibration.text}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

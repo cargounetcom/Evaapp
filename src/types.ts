@@ -11,10 +11,28 @@ export interface UserProfile {
   isPremium: boolean;
   subscriptionTier: 'free' | 'pro' | 'elite' | 'viking';
   isIncognito: boolean;
+  soundEnabled?: boolean;
   distance?: number;
   feedsBalance?: number;
+  lastVibration?: {
+    text: string;
+    timestamp: string;
+    color: string;
+  };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Vibration {
+  id: string;
+  userId: string;
+  userName: string;
+  photoURL: string;
+  text: string;
+  color: string;
+  timestamp: string;
+  mediaURL?: string;
+  mediaType?: 'image' | 'video';
 }
 
 export interface Feed {

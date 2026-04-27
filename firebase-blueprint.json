@@ -57,12 +57,32 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["matchId", "senderId", "text", "createdAt"]
+    },
+    "Vibration": {
+      "title": "Vibration",
+      "description": "A global status broadcast.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "text": { "type": "string" },
+        "mediaURL": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "color": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "photoURL", "text", "color", "timestamp"]
     }
   },
   "firestore": {
     "/profiles/{userId}": {
       "schema": "UserProfile",
       "description": "User profile documents indexed by UID."
+    },
+    "/vibrations/{vibeId}": {
+      "schema": "Vibration",
+      "description": "Global status vibrations."
     },
     "/swipes/{swipeId}": {
       "schema": "Swipe",
