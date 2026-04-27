@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Details about a dating app user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The unique Firebase Auth UID." },
+        "displayName": { "type": "string", "description": "Display name." },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "bio": { "type": "string", "description": "Short user bio." },
+        "interests": { "type": "array", "items": { "type": "string" } },
+        "birthDate": { "type": "string", "format": "date-time" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "lookingFor": { "type": "string", "enum": ["male", "female", "everyone"] },
+        "isPremium": { "type": "boolean" },
+        "subscriptionTier": { "type": "string", "enum": ["free", "pro", "elite", "viking"] },
+        "isIncognito": { "type": "boolean" },
+        "distance": { "type": "number" },
+        "feedsBalance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "email", "birthDate", "gender", "lookingFor"]
+    },
+    "Swipe": {
+      "title": "Swipe",
+      "description": "A swiping action (like or pass).",
+      "type": "object",
+      "properties": {
+        "swiperId": { "type": "string" },
+        "swipedId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "pass"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["swiperId", "swipedId", "type", "createdAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A mutual connection between two users.",
+      "type": "object",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "string" }, "description": "Array of 2 user IDs." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["users", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message sent within a match.",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents indexed by UID."
+    },
+    "/swipes/{swipeId}": {
+      "schema": "Swipe",
+      "description": "Swiping actions record."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Active matches."
+    },
+    "/matches/{matchId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages belonging to a match."
+    }
+  }
+}

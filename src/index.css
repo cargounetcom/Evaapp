@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Space+Grotesk:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-pop: "Luckiest Guy", cursive;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-pop-yellow: #FFFF00;
+  --color-pop-pink: #FF00FF;
+  --color-pop-cyan: #00FFFF;
+  --color-pop-black: #000000;
+}
+
+@layer utilities {
+  .pop-card {
+    @apply bg-white border-4 border-pop-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all;
+  }
+  .pop-card:hover {
+    @apply -translate-x-1 -translate-y-1 shadow-[12px_12px_0px_0px_rgba(0,0,0,1)];
+  }
+  .pop-button-yellow {
+    @apply bg-pop-yellow border-4 border-pop-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:shadow-none active:translate-x-1 active:translate-y-1 font-pop uppercase tracking-wider transition-all;
+  }
+  .pop-button-pink {
+    @apply bg-pop-pink border-4 border-pop-black text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:shadow-none active:translate-x-1 active:translate-y-1 font-pop uppercase tracking-wider transition-all;
+  }
+  .pop-button-cyan {
+    @apply bg-pop-cyan border-4 border-pop-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 active:shadow-none active:translate-x-1 active:translate-y-1 font-pop uppercase tracking-wider transition-all;
+  }
+  
+  .halftone {
+    background-image: radial-gradient(rgba(0,0,0,0.1) 2px, transparent 2px);
+    background-size: 20px 20px;
+  }
+}
+
+body {
+  @apply font-sans bg-pop-cyan text-pop-black antialiased;
+  min-height: 100vh;
+  background-image: radial-gradient(rgba(0,0,0,0.1) 2px, transparent 2px);
+  background-size: 20px 20px;
+}
